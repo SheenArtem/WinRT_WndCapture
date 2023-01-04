@@ -49,7 +49,7 @@ DesktopWindowTarget CreateDesktopWindowTarget(Compositor const& compositor, HWND
     return target;
 }
 
-WNDCAP_HANDLE Init(HWND WindowHandle)
+WNDCAP_HANDLE InitWndCap(HWND WindowHandle)
 {
     WNDCAP_HANDLE_STRUCT* wndcap = new WNDCAP_HANDLE_STRUCT;
     if (wndcap == nullptr)
@@ -84,7 +84,7 @@ WNDCAP_HANDLE Init(HWND WindowHandle)
     return wndcap;
 }
 
-bool UninitWNDCAP(WNDCAP_HANDLE wndcap_handle)
+bool UninitWndCap(WNDCAP_HANDLE wndcap_handle)
 {
     WNDCAP_HANDLE_STRUCT* wndcap = reinterpret_cast<WNDCAP_HANDLE_STRUCT*>(wndcap_handle);
     if (wndcap == nullptr)
@@ -101,21 +101,30 @@ void StartCapture(WNDCAP_HANDLE wndcap_handle, int index)
     wndcap->m_APP->StartCapture(wndcap->m_allWindow[index].Hwnd(), wndcap->m_frameData);
 }
 
-const std::vector<std::wstring> GetAllWindowTitle(WNDCAP_HANDLE wndcap_handle)
+int GetWindowCount(WNDCAP_HANDLE wndcap_handle)
 {
-    std::vector<std::wstring> allTitles;
-    allTitles.clear();
-
     WNDCAP_HANDLE_STRUCT* wndcap = reinterpret_cast<WNDCAP_HANDLE_STRUCT*>(wndcap_handle);
     if (wndcap == nullptr)
-        return allTitles;
-    
+        return 0;
     wndcap->m_allWindow = EnumerateWindows();
-    for (auto& window : wndcap->m_allWindow)
-    {
-        allTitles.push_back(window.Title());
+    return  wndcap->m_allWindow.size();
+}
+
+const wchar_t* GetWindowTitle(WNDCAP_HANDLE wndcap_handle, int index)
+{
+    WNDCAP_HANDLE_STRUCT* wndcap = reinterpret_cast<WNDCAP_HANDLE_STRUCT*>(wndcap_handle);
+    if (wndcap == nullptr)
+        return nullptr;
+    
+    if(wndcap->m_allWindow.size() == 0 || index >= wndcap->m_allWindow.size())
+        wndcap->m_allWindow = EnumerateWindows();
+    if (index >= wndcap->m_allWindow.size() || index < 0) {
+        OutputDebugStringA("Wrong index - GetWindowTitle()");
+        return nullptr; 
     }
-    return allTitles;
+    else {
+        return wndcap->m_allWindow[index].Title().c_str();
+    }
 }
 
 bool WindowCapture(WNDCAP_HANDLE wndcap_handle, unsigned char* buf, unsigned int& uiWidth, unsigned int& uiHeight, bool bSkipMouse, bool& bMouseVisible)
