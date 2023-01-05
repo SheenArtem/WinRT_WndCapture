@@ -51,9 +51,11 @@ void App::Initialize(
     auto d3dDevice = CreateD3DDevice();
     auto dxgiDevice = d3dDevice.as<IDXGIDevice>();
     m_device = CreateDirect3DDevice(dxgiDevice.get());
+    if (m_device == NULL)
+        OutputDebugStringA("CreateDirect3DDevice(dxgiDevice.get()); return NULL!!! \r\n");
 }
 
-void App::StartCapture(HWND hwnd, std::shared_ptr<unsigned char> framePtr)
+void App::StartCapture(HWND hwnd, unsigned char* framePtr)
 {
 	if (m_capture)
 	{

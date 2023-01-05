@@ -12,4 +12,6 @@ build/ResourceHacker.log
 .vs/
 /Release
 /WindowCapture/Release
+/Debug
+/WindowCapture/Debug
 console.log

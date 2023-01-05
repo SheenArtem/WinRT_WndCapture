@@ -8,7 +8,7 @@ public:
         winrt::Windows::Graphics::Capture::GraphicsCaptureItem const& item);
     ~SimpleCapture() { Close(); }
 
-    void StartCapture(std::shared_ptr<unsigned char> framePtr);
+    void StartCapture(unsigned char* framePtr);
     winrt::Windows::UI::Composition::ICompositionSurface CreateSurface(
         winrt::Windows::UI::Composition::Compositor const& compositor);
 
@@ -40,5 +40,5 @@ private:
     std::atomic<bool> m_closed = false;
 	winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool::FrameArrived_revoker m_frameArrived;
 
-    std::shared_ptr<unsigned char> m_frameData;    
+    unsigned char* m_frameData;
 };
