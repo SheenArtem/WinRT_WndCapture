@@ -27,36 +27,32 @@ using namespace Windows::Foundation::Numerics;
 using namespace Windows::UI;
 using namespace Windows::UI::Composition;
 
-#ifdef _DEBUG
-static unsigned char temp[4096 * 4096 * 4];
-#endif
-
 SimpleCapture::SimpleCapture(
     IDirect3DDevice const& device,
     GraphicsCaptureItem const& item)
 {
     m_item = item;
     m_device = device;
-
 	// Set up 
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
     d3dDevice->GetImmediateContext(m_d3dContext.put());
 
 	auto size = m_item.Size();
-
+    
     m_swapChain = CreateDXGISwapChain(
         d3dDevice, 
 		static_cast<uint32_t>(size.Width),
 		static_cast<uint32_t>(size.Height),
         static_cast<DXGI_FORMAT>(DirectXPixelFormat::B8G8R8A8UIntNormalized),
         2);
-
-	// Create framepool, define pixel format (DXGI_FORMAT_B8G8R8A8_UNORM), and frame size. 
+    
+	// Create framepool, define pixel format (DXGI_FORMAT_B8G8R8A8_UNORM), and frame size.     
     m_framePool = Direct3D11CaptureFramePool::Create(
         m_device,
         DirectXPixelFormat::B8G8R8A8UIntNormalized,
         2,
-		size);
+        size);
+
     m_session = m_framePool.CreateCaptureSession(m_item);
     //m_session.IsCursorCaptureEnabled(false);
     m_lastSize = size;
@@ -84,7 +80,7 @@ void SimpleCapture::Close()
     auto expected = false;
     if (m_closed.compare_exchange_strong(expected, true))
     {
-		m_frameArrived.revoke();
+		//m_frameArrived.revoke();
 		m_framePool.Close();
         m_session.Close();
 
@@ -120,68 +116,41 @@ void SimpleCapture::OnFrameArrived(
                 static_cast<DXGI_FORMAT>(DirectXPixelFormat::B8G8R8A8UIntNormalized), 
                 0);
         }
-
+        
         {
             auto frameSurface = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
+            auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
             /* need GetDesc because ContentSize is not reliable */
             D3D11_TEXTURE2D_DESC desc;
             frameSurface->GetDesc(&desc);
             UINT uiWidth = desc.Width;
             UINT uiHeight = desc.Height;
-
+            ULONG ulFrameBufferSize = uiWidth * uiHeight * 4;
+#ifdef _DEBUG
             com_ptr<ID3D11Texture2D> backBuffer;
             check_hresult(m_swapChain->GetBuffer(0, guid_of<ID3D11Texture2D>(), backBuffer.put_void()));
             m_d3dContext->CopyResource(backBuffer.get(), frameSurface.get());
-            
-            // Staging buffer/texture
-            D3D11_TEXTURE2D_DESC CopyBufferDesc;
-            CopyBufferDesc.Width = desc.Width;
-            CopyBufferDesc.Height = desc.Height;
-            CopyBufferDesc.MipLevels = 1;
-            CopyBufferDesc.ArraySize = 1;
-            CopyBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-            CopyBufferDesc.SampleDesc.Count = 1;
-            CopyBufferDesc.SampleDesc.Quality = 0;
-            CopyBufferDesc.Usage = D3D11_USAGE_STAGING;
-            CopyBufferDesc.BindFlags = 0;
-            CopyBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-            CopyBufferDesc.MiscFlags = 0;
-
-            ID3D11Texture2D* CopyBuffer = nullptr;
-            auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
-            hr = d3dDevice->CreateTexture2D(&CopyBufferDesc, nullptr, &CopyBuffer);
-            if (FAILED(hr)) {
-                OutputDebugStringA("Failed: d3dDevice->CreateTexture2D(&CopyBufferDesc, nullptr, &CopyBuffer);\r\n");
-            }
-            // Copy needed part of image
-            m_d3dContext->CopySubresourceRegion(CopyBuffer, 0, 0, 0, 0, backBuffer.get(), 0, nullptr);
-            // QI for IDXGISurface
-            IDXGISurface* CopySurface = nullptr;
-            hr = CopyBuffer->QueryInterface(__uuidof(IDXGISurface), (void**)&CopySurface);
-            CopyBuffer->Release();
-            CopyBuffer = nullptr;
-            if (FAILED(hr))
-            {
-                return OutputDebugStringA("Failed: CopyBuffer->QueryInterface(__uuidof(IDXGISurface), (void**)&CopySurface);\r\n");
-            }
-
-            // Map pixels
-            DXGI_MAPPED_RECT MappedSurface;
-            hr = CopySurface->Map(&MappedSurface, DXGI_MAP_READ);
-            if (FAILED(hr)) {
-                OutputDebugStringA("Failed: CopySurface->Map(&MappedSurface, DXGI_MAP_READ);\r\n");
-            }
-            unsigned long ulFrameBufferSize = uiWidth * uiHeight * 4;
-#ifdef _DEBUG
-            memcpy(temp, MappedSurface.pBits, ulFrameBufferSize);
-            memcpy(m_frameData, MappedSurface.pBits, ulFrameBufferSize);
-#else
-            memcpy(m_frameData, MappedSurface.pBits, ulFrameBufferSize);
 #endif
-            // Done with resource
-            CopySurface->Unmap();
-            CopySurface->Release();
-            CopySurface = nullptr;
+            com_ptr<ID3D11Texture2D> CopyBuffer = CreateStageTexture2D(d3dDevice,
+                static_cast<uint32_t>(desc.Width),
+                static_cast<uint32_t>(desc.Height),
+                static_cast<DXGI_FORMAT>(DirectXPixelFormat::B8G8R8A8UIntNormalized));
+
+            m_d3dContext->CopyResource(CopyBuffer.get(), frameSurface.get());
+
+            // Copy the bits
+            D3D11_MAPPED_SUBRESOURCE mapped = {};
+            winrt::check_hresult(m_d3dContext->Map(CopyBuffer.get(), 0, D3D11_MAP_READ, 0, &mapped));
+            std::vector<byte> bits(desc.Width * desc.Height * 4, 0);
+            auto dest = bits.data();
+            auto source = reinterpret_cast<byte*>(mapped.pData);
+            for (auto i = 0; i < (int)desc.Height; i++)
+            {
+                memcpy(m_frameData, source, desc.Width * 4);
+                source += mapped.RowPitch;
+                m_frameData += desc.Width * 4;
+            }
+            m_d3dContext->Unmap(CopyBuffer.get(), 0);
         }
     }
 #ifdef _DEBUG

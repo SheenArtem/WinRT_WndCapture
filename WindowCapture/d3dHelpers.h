@@ -170,3 +170,35 @@ CreateDXGISwapChain(
 
     return CreateDXGISwapChain(device, &desc);
 }
+
+inline auto
+CreateTexture2D(
+    winrt::com_ptr<ID3D11Device> const& device,
+    const D3D11_TEXTURE2D_DESC* desc)
+{
+    winrt::com_ptr<ID3D11Texture2D> texture;
+    winrt::check_hresult(device->CreateTexture2D(desc, nullptr, texture.put()));
+    return texture;
+}
+
+inline auto
+CreateStageTexture2D(
+    winrt::com_ptr<ID3D11Device> const& device,
+    uint32_t width,
+    uint32_t height,
+    DXGI_FORMAT format)
+{
+    D3D11_TEXTURE2D_DESC DeskTexD = {};
+    DeskTexD.Width = width;
+    DeskTexD.Height = height;
+    DeskTexD.Format = format;
+    DeskTexD.MipLevels = 1;
+    DeskTexD.ArraySize = 1;
+    DeskTexD.SampleDesc.Count = 1;
+    DeskTexD.SampleDesc.Quality = 0;
+    DeskTexD.Usage = D3D11_USAGE_STAGING;
+    DeskTexD.BindFlags = 0;
+    DeskTexD.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    DeskTexD.MiscFlags = 0;
+    return CreateTexture2D(device, &DeskTexD);
+}
