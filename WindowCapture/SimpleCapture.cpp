@@ -80,7 +80,7 @@ void SimpleCapture::Close()
     auto expected = false;
     if (m_closed.compare_exchange_strong(expected, true))
     {
-		//m_frameArrived.revoke();
+		m_frameArrived.revoke();
 		m_framePool.Close();
         m_session.Close();
 
@@ -146,10 +146,11 @@ void SimpleCapture::OnFrameArrived(
             auto source = reinterpret_cast<byte*>(mapped.pData);
             for (auto i = 0; i < (int)desc.Height; i++)
             {
-                memcpy(m_frameData, source, desc.Width * 4);
+                memcpy(dest, source, desc.Width * 4);
                 source += mapped.RowPitch;
-                m_frameData += desc.Width * 4;
+                dest += desc.Width * 4;
             }
+            memcpy(m_frameData, bits.data(), ulFrameBufferSize);
             m_d3dContext->Unmap(CopyBuffer.get(), 0);
         }
     }

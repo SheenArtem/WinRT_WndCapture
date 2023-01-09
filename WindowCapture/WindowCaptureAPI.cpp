@@ -148,7 +148,7 @@ int       cmdShow);
 
 auto g_app = std::make_shared<App>();
 auto g_windows = EnumerateWindows();
-unsigned char g_ptrData[BUF_SIZE] = { 0 };
+static unsigned char g_ptrData[BUF_SIZE];
 LRESULT CALLBACK WndProc(
     HWND   hwnd,
     UINT   msg,
@@ -164,6 +164,7 @@ int CALLBACK WinMain(
     // Init COM
     init_apartment(apartment_type::single_threaded);
 
+    memset(g_ptrData, 0, BUF_SIZE);
     // Create the window
     WNDCLASSEX wcex = {};
     wcex.cbSize = sizeof(WNDCLASSEX);
