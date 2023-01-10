@@ -19,7 +19,6 @@ typedef struct
     UINT	Height;
     bool    capture_cursor;//TODO
     bool    cursor_visible;//TODO
-    unsigned char* m_frameData;
     std::shared_ptr<App> m_APP;
     std::vector<Window> m_allWindow;
 } WNDCAP_HANDLE_STRUCT;
@@ -65,7 +64,6 @@ WNDCAP_HANDLE InitWndCap(HWND WindowHandle)
     wndcap->m_allWindow = EnumerateWindows();
     // Init COM
     init_apartment(apartment_type::multi_threaded);
-    wndcap->m_frameData = rawdata;
 
     // Create a DispatcherQueue for our thread
     auto controller = CreateDispatcherQueueController();
@@ -95,7 +93,7 @@ void StartCapture(WNDCAP_HANDLE wndcap_handle, int index)
     WNDCAP_HANDLE_STRUCT* wndcap = reinterpret_cast<WNDCAP_HANDLE_STRUCT*>(wndcap_handle);
     if (wndcap == nullptr)
         return;
-    wndcap->m_APP->StartCapture(wndcap->m_allWindow[index].Hwnd(), wndcap->m_frameData);
+    wndcap->m_APP->StartCapture(wndcap->m_allWindow[index].Hwnd());
 }
 
 int GetWindowCount(WNDCAP_HANDLE wndcap_handle)
@@ -133,7 +131,8 @@ bool WindowCapture(WNDCAP_HANDLE wndcap_handle, unsigned char* buf, unsigned int
     winrt::Windows::Graphics::SizeInt32 frameSize = wndcap->m_APP->GetFrameSize();
     uiWidth = frameSize.Width;
     uiHeight = frameSize.Height;
-    memcpy(buf, wndcap->m_frameData, uiWidth * uiHeight * 4);
+    //TODO:
+    wndcap->m_APP->CopyImage(buf);
 
     return true;
 }

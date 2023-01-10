@@ -45,24 +45,32 @@ SimpleCapture::SimpleCapture(
 		static_cast<uint32_t>(size.Height),
         static_cast<DXGI_FORMAT>(DirectXPixelFormat::B8G8R8A8UIntNormalized),
         2);
-    
-	// Create framepool, define pixel format (DXGI_FORMAT_B8G8R8A8_UNORM), and frame size.     
+
+	// Create framepool, define pixel format (DXGI_FORMAT_B8G8R8A8_UNORM), and frame size.
+#ifdef UI_THREAD_CAPTURE
     m_framePool = Direct3D11CaptureFramePool::Create(
         m_device,
         DirectXPixelFormat::B8G8R8A8UIntNormalized,
-        2,
+        1,
         size);
-
+#else
+    m_framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+        m_device,
+        DirectXPixelFormat::B8G8R8A8UIntNormalized,
+        1,
+        size);
+#endif
     m_session = m_framePool.CreateCaptureSession(m_item);
     //m_session.IsCursorCaptureEnabled(false);
     m_lastSize = size;
+#ifdef UI_THREAD_CAPTURE
 	m_frameArrived = m_framePool.FrameArrived(auto_revoke, { this, &SimpleCapture::OnFrameArrived });
+#endif
 }
 
 // Start sending capture frames
-void SimpleCapture::StartCapture(unsigned char* framePtr)
+void SimpleCapture::StartCapture()
 {
-    m_frameData = framePtr;
     CheckClosed();
     m_session.StartCapture();
 }
@@ -84,10 +92,59 @@ void SimpleCapture::Close()
 		m_framePool.Close();
         m_session.Close();
 
+        CloseHandle(m_eventCapture);
         m_swapChain = nullptr;
         m_framePool = nullptr;
         m_session = nullptr;
         m_item = nullptr;
+    }
+}
+
+void SimpleCapture::CopyImage(unsigned char* buf)
+{
+    auto newSize = false;
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
+    auto frame = m_framePool.TryGetNextFrame();
+    auto frameContentSize = frame.ContentSize();
+    m_captureFrame = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
+    
+    D3D11_TEXTURE2D_DESC desc;
+    m_captureFrame->GetDesc(&desc);
+    UINT uiWidth = desc.Width;
+    UINT uiHeight = desc.Height;
+    ULONG ulFrameBufferSize = uiWidth * uiHeight * 4;
+
+    auto CopyBuffer = CreateStageTexture2D(d3dDevice,
+        static_cast<uint32_t>(desc.Width),
+        static_cast<uint32_t>(desc.Height),
+        static_cast<DXGI_FORMAT>(DirectXPixelFormat::B8G8R8A8UIntNormalized));
+    m_d3dContext->CopyResource(CopyBuffer.get(), m_captureFrame.get());
+
+    //Copy the bits
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    winrt::check_hresult(m_d3dContext->Map(CopyBuffer.get(), 0, D3D11_MAP_READ, 0, &mapped));
+    auto source = reinterpret_cast<byte*>(mapped.pData);
+    for (auto i = 0; i < (int)desc.Height; i++)
+    {
+        memcpy(buf, source, desc.Width * 4);
+        source += mapped.RowPitch;
+        buf += desc.Width * 4;
+    }
+    m_d3dContext->Unmap(CopyBuffer.get(), 0);
+
+    if (frameContentSize.Width != m_lastSize.Width ||
+        frameContentSize.Height != m_lastSize.Height)
+    {
+        // The thing we have been capturing has changed size.
+        // We need to resize our swap chain first, then blit the pixels.
+        // After we do that, retire the frame and then recreate our frame pool.
+        newSize = true;
+        m_lastSize = frameContentSize;
+        m_framePool.Recreate(
+            m_device,
+            DirectXPixelFormat::B8G8R8A8UIntNormalized,
+            1,
+            m_lastSize);
     }
 }
 
@@ -109,49 +166,30 @@ void SimpleCapture::OnFrameArrived(
             // After we do that, retire the frame and then recreate our frame pool.
             newSize = true;
             m_lastSize = frameContentSize;
+#ifdef _DEBUG
             m_swapChain->ResizeBuffers(
                 2, 
 				static_cast<uint32_t>(m_lastSize.Width),
 				static_cast<uint32_t>(m_lastSize.Height),
                 static_cast<DXGI_FORMAT>(DirectXPixelFormat::B8G8R8A8UIntNormalized), 
                 0);
+#endif
         }
         
         {
-            auto frameSurface = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
+            m_captureFrame = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
             auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
             /* need GetDesc because ContentSize is not reliable */
             D3D11_TEXTURE2D_DESC desc;
-            frameSurface->GetDesc(&desc);
+            m_captureFrame->GetDesc(&desc);
             UINT uiWidth = desc.Width;
             UINT uiHeight = desc.Height;
             ULONG ulFrameBufferSize = uiWidth * uiHeight * 4;
 #ifdef _DEBUG
             com_ptr<ID3D11Texture2D> backBuffer;
             check_hresult(m_swapChain->GetBuffer(0, guid_of<ID3D11Texture2D>(), backBuffer.put_void()));
-            m_d3dContext->CopyResource(backBuffer.get(), frameSurface.get());
-#endif
-            com_ptr<ID3D11Texture2D> CopyBuffer = CreateStageTexture2D(d3dDevice,
-                static_cast<uint32_t>(desc.Width),
-                static_cast<uint32_t>(desc.Height),
-                static_cast<DXGI_FORMAT>(DirectXPixelFormat::B8G8R8A8UIntNormalized));
-
-            m_d3dContext->CopyResource(CopyBuffer.get(), frameSurface.get());
-
-            // Copy the bits
-            D3D11_MAPPED_SUBRESOURCE mapped = {};
-            winrt::check_hresult(m_d3dContext->Map(CopyBuffer.get(), 0, D3D11_MAP_READ, 0, &mapped));
-            std::vector<byte> bits(desc.Width * desc.Height * 4, 0);
-            auto dest = bits.data();
-            auto source = reinterpret_cast<byte*>(mapped.pData);
-            for (auto i = 0; i < (int)desc.Height; i++)
-            {
-                memcpy(dest, source, desc.Width * 4);
-                source += mapped.RowPitch;
-                dest += desc.Width * 4;
-            }
-            memcpy(m_frameData, bits.data(), ulFrameBufferSize);
-            m_d3dContext->Unmap(CopyBuffer.get(), 0);
+            m_d3dContext->CopyResource(backBuffer.get(), m_captureFrame.get());
+#endif            
         }
     }
 #ifdef _DEBUG
@@ -163,8 +201,7 @@ void SimpleCapture::OnFrameArrived(
         m_framePool.Recreate(
             m_device,
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
-            2,
+            1,
             m_lastSize);
     }
 }
-

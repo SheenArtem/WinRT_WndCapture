@@ -8,9 +8,11 @@ public:
         winrt::Windows::Graphics::Capture::GraphicsCaptureItem const& item);
     ~SimpleCapture() { Close(); }
 
-    void StartCapture(unsigned char* framePtr);
+    void StartCapture();
     winrt::Windows::UI::Composition::ICompositionSurface CreateSurface(
         winrt::Windows::UI::Composition::Compositor const& compositor);
+
+    void CopyImage(unsigned char* buf);
 
     void Close();
     winrt::Windows::Graphics::SizeInt32 GetLastSize() { return m_lastSize; }
@@ -35,10 +37,9 @@ private:
 
     winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice m_device{ nullptr };
     winrt::com_ptr<IDXGISwapChain1> m_swapChain{ nullptr };
+    winrt::com_ptr<ID3D11Texture2D> m_captureFrame{ nullptr };
     winrt::com_ptr<ID3D11DeviceContext> m_d3dContext{ nullptr };
-
+    
     std::atomic<bool> m_closed = false;
 	winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool::FrameArrived_revoker m_frameArrived;
-
-    unsigned char* m_frameData;
 };

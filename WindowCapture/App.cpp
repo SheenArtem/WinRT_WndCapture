@@ -55,7 +55,7 @@ void App::Initialize(
         OutputDebugStringA("CreateDirect3DDevice(dxgiDevice.get()); return NULL!!! \r\n");
 }
 
-void App::StartCapture(HWND hwnd, unsigned char* framePtr)
+void App::StartCapture(HWND hwnd)
 {
 	if (m_capture)
 	{
@@ -70,7 +70,7 @@ void App::StartCapture(HWND hwnd, unsigned char* framePtr)
     auto surface = m_capture->CreateSurface(m_compositor);
     m_brush.Surface(surface);
     
-    m_capture->StartCapture(framePtr);
+    m_capture->StartCapture();
 }
 
 winrt::Windows::Graphics::SizeInt32 App::GetFrameSize()
@@ -79,4 +79,12 @@ winrt::Windows::Graphics::SizeInt32 App::GetFrameSize()
     size.Height = 0; 
     size.Width = 0; 
     return m_capture != nullptr ? m_capture->GetLastSize() : size;
+}
+
+void App::CopyImage(unsigned char* buf)
+{
+    if (m_capture)
+    {
+        m_capture->CopyImage(buf);
+    }
 }
