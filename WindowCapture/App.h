@@ -8,7 +8,6 @@ public:
     ~App() {}
 
     void Initialize(winrt::Windows::UI::Composition::ContainerVisual const& root);
-
     void StartCapture(HWND hwnd);
     void CopyImage(unsigned char* buf);
     winrt::Windows::Graphics::SizeInt32 GetFrameSize();

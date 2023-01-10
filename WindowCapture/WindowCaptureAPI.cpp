@@ -8,19 +8,14 @@ using namespace Windows::UI;
 using namespace Windows::UI::Composition;
 using namespace Windows::UI::Composition::Desktop;
 
-#define BUF_SIZE				4096*4096*4	//!!!!!!!!!!!!!!!! Aware of original resolution bigger than 4K
-
-static unsigned char rawdata[BUF_SIZE] = { 0 };
 typedef struct
 {
-    INT		TargetWindowIndex;
     HWND	WindowHandle;
     UINT	Width;
     UINT	Height;
     bool    capture_cursor;//TODO
     bool    cursor_visible;//TODO
     std::shared_ptr<App> m_APP;
-    std::vector<Window> m_allWindow;
 } WNDCAP_HANDLE_STRUCT;
 
 // Direct3D11CaptureFramePool requires a DispatcherQueue
@@ -55,13 +50,11 @@ WNDCAP_HANDLE InitWndCap(HWND WindowHandle)
     WNDCAP_HANDLE_STRUCT* wndcap = new WNDCAP_HANDLE_STRUCT;
     if (wndcap == nullptr)
         return nullptr;
-    wndcap->TargetWindowIndex = 0;
     wndcap->WindowHandle = WindowHandle;
     wndcap->Width = 0;
     wndcap->Height = 0;
 
     wndcap->m_APP = std::make_shared<App>();
-    wndcap->m_allWindow = EnumerateWindows();
     // Init COM
     init_apartment(apartment_type::multi_threaded);
 
@@ -84,42 +77,15 @@ bool UninitWndCap(WNDCAP_HANDLE wndcap_handle)
     if (wndcap == nullptr)
         return false;
     delete wndcap;
-    //winrt::uninit_apartment(); //Needed?
     return true;
 }
 
-void StartCapture(WNDCAP_HANDLE wndcap_handle, int index)
+void StartCapture(WNDCAP_HANDLE wndcap_handle, HWND wndHandle)
 {
     WNDCAP_HANDLE_STRUCT* wndcap = reinterpret_cast<WNDCAP_HANDLE_STRUCT*>(wndcap_handle);
     if (wndcap == nullptr)
         return;
-    wndcap->m_APP->StartCapture(wndcap->m_allWindow[index].Hwnd());
-}
-
-int GetWindowCount(WNDCAP_HANDLE wndcap_handle)
-{
-    WNDCAP_HANDLE_STRUCT* wndcap = reinterpret_cast<WNDCAP_HANDLE_STRUCT*>(wndcap_handle);
-    if (wndcap == nullptr)
-        return 0;
-    wndcap->m_allWindow = EnumerateWindows();
-    return  wndcap->m_allWindow.size();
-}
-
-const wchar_t* GetWindowTitle(WNDCAP_HANDLE wndcap_handle, int index)
-{
-    WNDCAP_HANDLE_STRUCT* wndcap = reinterpret_cast<WNDCAP_HANDLE_STRUCT*>(wndcap_handle);
-    if (wndcap == nullptr)
-        return nullptr;
-    
-    if(wndcap->m_allWindow.size() == 0 || index >= wndcap->m_allWindow.size())
-        wndcap->m_allWindow = EnumerateWindows();
-    if (index >= wndcap->m_allWindow.size() || index < 0) {
-        OutputDebugStringA("Wrong index - GetWindowTitle()");
-        return nullptr; 
-    }
-    else {
-        return wndcap->m_allWindow[index].Title().c_str();
-    }
+    wndcap->m_APP->StartCapture(wndHandle);
 }
 
 bool WindowCapture(WNDCAP_HANDLE wndcap_handle, unsigned char* buf, unsigned int& uiWidth, unsigned int& uiHeight, bool bSkipMouse, bool& bMouseVisible)
@@ -131,9 +97,7 @@ bool WindowCapture(WNDCAP_HANDLE wndcap_handle, unsigned char* buf, unsigned int
     winrt::Windows::Graphics::SizeInt32 frameSize = wndcap->m_APP->GetFrameSize();
     uiWidth = frameSize.Width;
     uiHeight = frameSize.Height;
-    //TODO:
     wndcap->m_APP->CopyImage(buf);
-
     return true;
 }
 
@@ -147,7 +111,6 @@ int       cmdShow);
 
 auto g_app = std::make_shared<App>();
 auto g_windows = EnumerateWindows();
-static unsigned char g_ptrData[BUF_SIZE];
 LRESULT CALLBACK WndProc(
     HWND   hwnd,
     UINT   msg,
@@ -163,7 +126,6 @@ int CALLBACK WinMain(
     // Init COM
     init_apartment(apartment_type::single_threaded);
 
-    memset(g_ptrData, 0, BUF_SIZE);
     // Create the window
     WNDCLASSEX wcex = {};
     wcex.cbSize = sizeof(WNDCLASSEX);
@@ -265,7 +227,7 @@ LRESULT CALLBACK WndProc(
             auto index = SendMessage((HWND)lParam, CB_GETCURSEL, 0, 0);
             auto window = g_windows[index];
             
-            g_app->StartCapture(window.Hwnd(), g_ptrData);
+            g_app->StartCapture(window.Hwnd());
         }
         break;
     default:
