@@ -92,7 +92,6 @@ void SimpleCapture::Close()
 		m_framePool.Close();
         m_session.Close();
 
-        CloseHandle(m_eventCapture);
         m_swapChain = nullptr;
         m_framePool = nullptr;
         m_session = nullptr;
