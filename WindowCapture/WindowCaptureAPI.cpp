@@ -56,7 +56,7 @@ WNDCAP_HANDLE InitWndCap(HWND WindowHandle)
 
     wndcap->m_APP = std::make_shared<App>();
     // Init COM
-    init_apartment(apartment_type::multi_threaded);
+    //init_apartment(apartment_type::multi_threaded);
 
     // Create a DispatcherQueue for our thread
     auto controller = CreateDispatcherQueueController();
