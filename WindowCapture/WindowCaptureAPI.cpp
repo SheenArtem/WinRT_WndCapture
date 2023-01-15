@@ -94,11 +94,11 @@ bool WindowCapture(WNDCAP_HANDLE wndcap_handle, unsigned char* buf, unsigned int
     if (wndcap == nullptr)
         return false;
 
+    bool ret = wndcap->m_APP->CopyImage(buf);
     winrt::Windows::Graphics::SizeInt32 frameSize = wndcap->m_APP->GetFrameSize();
     uiWidth = frameSize.Width;
     uiHeight = frameSize.Height;
-    wndcap->m_APP->CopyImage(buf);
-    return true;
+    return ret;
 }
 
 

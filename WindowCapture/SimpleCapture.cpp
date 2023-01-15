@@ -47,7 +47,7 @@ SimpleCapture::SimpleCapture(
         2);
 
 	// Create framepool, define pixel format (DXGI_FORMAT_B8G8R8A8_UNORM), and frame size.
-#ifdef UI_THREAD_CAPTURE
+#ifdef _DEBUG
     m_framePool = Direct3D11CaptureFramePool::Create(
         m_device,
         DirectXPixelFormat::B8G8R8A8UIntNormalized,
@@ -63,7 +63,7 @@ SimpleCapture::SimpleCapture(
     m_session = m_framePool.CreateCaptureSession(m_item);
     //m_session.IsCursorCaptureEnabled(false);
     m_lastSize = size;
-#ifdef UI_THREAD_CAPTURE
+#ifdef _DEBUG
 	m_frameArrived = m_framePool.FrameArrived(auto_revoke, { this, &SimpleCapture::OnFrameArrived });
 #endif
 }
@@ -99,11 +99,15 @@ void SimpleCapture::Close()
     }
 }
 
-void SimpleCapture::CopyImage(unsigned char* buf)
+bool SimpleCapture::CopyImage(unsigned char* buf)
 {
     auto newSize = false;
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
     auto frame = m_framePool.TryGetNextFrame();
+    if (frame == nullptr) {
+        OutputDebugStringA("Null frame!\r\n");
+        return false;
+    }
     auto frameContentSize = frame.ContentSize();
     m_captureFrame = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
     
@@ -145,6 +149,7 @@ void SimpleCapture::CopyImage(unsigned char* buf)
             1,
             m_lastSize);
     }
+    return true;
 }
 
 void SimpleCapture::OnFrameArrived(

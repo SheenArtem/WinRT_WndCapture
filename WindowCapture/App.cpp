@@ -62,15 +62,37 @@ void App::StartCapture(HWND hwnd)
 		m_capture->Close();
 		m_capture = nullptr;
 	}
+    try {
+        auto windowHide = false;
+        bool windowMinimized;
+        WINDOWPLACEMENT placemant = { 0 };
+        GetWindowPlacement(hwnd, &placemant);
+        switch (placemant.showCmd)
+        {
+        case SW_SHOW:
+        case SW_SHOWDEFAULT:
+        case SW_SHOWMAXIMIZED:
+        case SW_SHOWNOACTIVATE:
+        case SW_SHOWNA:
+        case SW_SHOWNORMAL:
+            windowMinimized = false;
+            break;
+        default:
+            windowMinimized = true;
+        }
+        if (windowMinimized) return;
+        auto item = CreateCaptureItemForWindow(hwnd);
 
-	auto item = CreateCaptureItemForWindow(hwnd);
+        m_capture = std::make_unique<SimpleCapture>(m_device, item);
 
-    m_capture = std::make_unique<SimpleCapture>(m_device, item);
+        auto surface = m_capture->CreateSurface(m_compositor);
+        m_brush.Surface(surface);
 
-    auto surface = m_capture->CreateSurface(m_compositor);
-    m_brush.Surface(surface);
-    
-    m_capture->StartCapture();
+        m_capture->StartCapture();
+    }
+    catch (...) {
+        OutputDebugStringA("Capture target window failed!!!\r\n");
+    }
 }
 
 winrt::Windows::Graphics::SizeInt32 App::GetFrameSize()
@@ -81,10 +103,7 @@ winrt::Windows::Graphics::SizeInt32 App::GetFrameSize()
     return m_capture != nullptr ? m_capture->GetLastSize() : size;
 }
 
-void App::CopyImage(unsigned char* buf)
-{
-    if (m_capture)
-    {
-        m_capture->CopyImage(buf);
-    }
+bool App::CopyImage(unsigned char* buf)
+{    
+    return m_capture == nullptr ? false : m_capture->CopyImage(buf);
 }

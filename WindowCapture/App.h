@@ -9,7 +9,7 @@ public:
 
     void Initialize(winrt::Windows::UI::Composition::ContainerVisual const& root);
     void StartCapture(HWND hwnd);
-    void CopyImage(unsigned char* buf);
+    bool CopyImage(unsigned char* buf);
     winrt::Windows::Graphics::SizeInt32 GetFrameSize();
 private:
     winrt::Windows::UI::Composition::Compositor m_compositor{ nullptr };

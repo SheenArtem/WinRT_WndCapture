@@ -12,7 +12,7 @@ public:
     winrt::Windows::UI::Composition::ICompositionSurface CreateSurface(
         winrt::Windows::UI::Composition::Compositor const& compositor);
 
-    void CopyImage(unsigned char* buf);
+    bool CopyImage(unsigned char* buf);
 
     void Close();
     winrt::Windows::Graphics::SizeInt32 GetLastSize() { return m_lastSize; }
